@@ -3,7 +3,7 @@ module APL.Tests
   )
 where
 
-import APL.AST (Exp (..), subExp)
+import APL.AST (Exp (..), subExp, VName)
 import APL.Error (isVariableError, isDomainError, isTypeError)
 import APL.Check (checkExp)
 import Test.QuickCheck
@@ -13,13 +13,16 @@ import Test.QuickCheck
   , property
   , cover
   , checkCoverage
-  , oneof
   , sized
   , withMaxSuccess
+  , frequency
+  , elements
+  , chooseInt
+  , vectorOf
   )
 
 instance Arbitrary Exp where
-  arbitrary = sized genExp
+  arbitrary = sized (\size -> genExp size [])
 
   shrink (Add e1 e2) =
     e1 : e2 : [Add e1' e2 | e1' <- shrink e1] ++ [Add e1 e2' | e2' <- shrink e2]
@@ -45,28 +48,76 @@ instance Arbitrary Exp where
     e1 : e2 : [TryCatch e1' e2 | e1' <- shrink e1] ++ [TryCatch e1 e2' | e2' <- shrink e2]
   shrink _ = []
 
-genExp :: Int -> Gen Exp
-genExp 0 = oneof [CstInt <$> arbitrary, CstBool <$> arbitrary]
-genExp size =
-  oneof
-    [ CstInt <$> arbitrary
-    , CstBool <$> arbitrary
-    , Add <$> genExp halfSize <*> genExp halfSize
-    , Sub <$> genExp halfSize <*> genExp halfSize
-    , Mul <$> genExp halfSize <*> genExp halfSize
-    , Div <$> genExp halfSize <*> genExp halfSize
-    , Pow <$> genExp halfSize <*> genExp halfSize
-    , Eql <$> genExp halfSize <*> genExp halfSize
-    , If <$> genExp thirdSize <*> genExp thirdSize <*> genExp thirdSize
-    , Var <$> arbitrary
-    , Let <$> arbitrary <*> genExp halfSize <*> genExp halfSize
-    , Lambda <$> arbitrary <*> genExp (size - 1)
-    , Apply <$> genExp halfSize <*> genExp halfSize 
-    , TryCatch <$> genExp halfSize <*> genExp halfSize
+genVar :: Gen VName
+genVar = do
+  first <- elements ['a' .. 'z']
+  restLength <- chooseInt (1, 3)
+  rest <- vectorOf restLength $
+    elements (['a' .. 'z'] ++ ['0' .. '9'])
+  pure (first : rest)
+
+genUnboundVar :: [VName] -> Gen Exp
+genUnboundVar vars = do
+  name <- genVar
+  if name `elem` vars
+    then genUnboundVar vars
+    else pure (Var name)
+
+genVariable :: [VName] -> Gen Exp
+genVariable [] =
+  frequency
+    [ (49, CstInt <$> arbitrary)
+    , (1, genUnboundVar [])
     ]
+genVariable vars =
+  frequency
+    [ (49, Var <$> elements vars)
+    , (1, genUnboundVar vars)
+    ]
+
+genLet :: Int -> [VName] -> Gen Exp
+genLet size vars = do
+  name <- genVar
+  value <- genExp (size `div` 2) vars
+  body <- genExp (size `div` 2) (name : vars)
+  pure (Let name value body)
+
+genLambda :: Int -> [VName] -> Gen Exp
+genLambda size vars = do
+  name <- genVar
+  body <- genExp (size - 1) (name : vars)
+  pure (Lambda name body)
+
+genExp :: Int -> [VName] -> Gen Exp
+genExp size vars
+  | size <= 0 =
+      frequency
+        [ (3, CstInt <$> arbitrary)
+        , (3, CstBool <$> arbitrary)
+        , (4, genVariable vars)
+        ]
+
+  | otherwise =
+      frequency
+        [ (2, CstInt <$> arbitrary)
+        , (2, CstBool <$> arbitrary)
+        , (3, genVariable vars)
+        , (2, Add <$> sub <*> sub)
+        , (2, Sub <$> sub <*> sub)
+        , (2, Mul <$> sub <*> sub)
+        , (5, Div <$> sub <*> sub)
+        , (5, Pow <$> sub <*> sub)
+        , (2, Eql <$> sub <*> sub)
+        , (2, If <$> third <*> third <*> third)
+        , (3, genLet size vars)
+        , (3, genLambda size vars)
+        , (2, Apply <$> sub <*> sub)
+        , (2, TryCatch <$> sub <*> sub)
+        ]
+
   where
-    halfSize = size `div` 2
-    thirdSize = size `div` 3
+    sub = genExp (size `div` 2) vars
+    third = genExp (size `div` 3) vars
 
 expCoverage :: Exp -> Property
 expCoverage e = checkCoverage
