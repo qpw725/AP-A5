@@ -93,14 +93,14 @@ genExp :: Int -> [VName] -> Gen Exp
 genExp size vars
   | size <= 0 =
       frequency
-        [ (3, CstInt <$> arbitrary)
+        [ (3, CstInt <$> (chooseInteger (0,1000000)))
         , (3, CstBool <$> arbitrary)
         , (4, genVariable vars)
         ]
 
   | otherwise =
       frequency
-        [ (2, CstInt <$> arbitrary)
+        [ (2, CstInt <$> (chooseInteger (0,1000000)))
         , (2, CstBool <$> arbitrary)
         , (3, genVariable vars)
         , (2, Add <$> sub <*> sub)
