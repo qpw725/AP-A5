@@ -6,7 +6,7 @@ where
 import APL.AST (Exp (..), printExp, subExp, VName)
 import APL.Error (isVariableError, isDomainError, isTypeError)
 import APL.Check (checkExp)
-import APL.Parser (parseAPL)
+import APL.Parser (parseAPL, keywords)
 import Test.QuickCheck
   ( Property
   , Gen
@@ -55,7 +55,8 @@ genVar = do
   restLength <- chooseInt (1, 3)
   rest <- vectorOf restLength $
     elements (['a' .. 'z'] ++ ['0' .. '9'])
-  pure (first : rest)
+  if (first : rest) `elem` keywords then genVar else 
+    pure (first : rest)
 
 genUnboundVar :: [VName] -> Gen Exp
 genUnboundVar vars = do
