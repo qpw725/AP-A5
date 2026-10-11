@@ -133,7 +133,9 @@ expCoverage e = checkCoverage
   $ ()
 
 parsePrinted :: Exp -> Bool
-parsePrinted e = parseAPL "" (printExp e) == Right e
+parsePrinted e = case (parse pExp "" (printExp e)) of
+  Left _ -> False
+  Right p -> p == e
 
 onlyCheckedErrors :: Exp -> Bool
 onlyCheckedErrors _ = undefined
