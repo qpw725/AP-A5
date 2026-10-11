@@ -6,6 +6,7 @@ where
 import APL.AST (Exp (..), printExp, subExp, VName)
 import APL.Error (isVariableError, isDomainError, isTypeError)
 import APL.Check (checkExp)
+import APL.Eval (eval, runEval)
 import APL.Parser (parseAPL, keywords)
 import Test.QuickCheck
   ( Property
@@ -139,7 +140,9 @@ parsePrinted e = case parseAPL "" (printExp e) of
   Right p -> p == e
 
 onlyCheckedErrors :: Exp -> Bool
-onlyCheckedErrors _ = undefined
+onlyCheckedErrors e = case runEval (eval e) of
+  Left err -> err `elem` checkExp e
+  Right _ -> True
 
 -- The number of tests is part of the specification of this test suite: some of
 -- these properties fail only rarely.  Do not reduce it.
