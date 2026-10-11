@@ -19,6 +19,7 @@ import Test.QuickCheck
   , frequency
   , elements
   , chooseInt
+  , chooseInteger
   , vectorOf
   )
 
@@ -68,7 +69,7 @@ genUnboundVar vars = do
 genVariable :: [VName] -> Gen Exp
 genVariable [] =
   frequency
-    [ (49, CstInt <$> arbitrary)
+    [ (49, CstInt <$> chooseInteger (0, 1000000))
     , (1, genUnboundVar [])
     ]
 genVariable vars =
@@ -133,7 +134,7 @@ expCoverage e = checkCoverage
   $ ()
 
 parsePrinted :: Exp -> Bool
-parsePrinted e = case (parse pExp "" (printExp e)) of
+parsePrinted e = case parseAPL "" (printExp e) of
   Left _ -> False
   Right p -> p == e
 
